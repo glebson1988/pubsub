@@ -24,22 +24,6 @@ func main() {
 	}
 	defer ch.Close()
 
-	playingState := routing.PlayingState{
-		IsPaused: true,
-	}
-	err = pubsub.PublishJSON(
-		ch,
-		routing.ExchangePerilDirect,
-		routing.PauseKey,
-		playingState,
-	)
-	if err != nil {
-		log.Printf("could not publish pause state: %v", err)
-	}
-
-	fmt.Println("Connected to RabbitMQ successfully")
-	fmt.Println("Starting Peril server... (Ctrl+C to exit)")
-
 	gamelogic.PrintServerHelp()
 
 loop:
