@@ -17,9 +17,15 @@ func main() {
 	}
 	defer conn.Close()
 
-	ch, err := conn.Channel()
+	ch, _, err := pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*",
+		pubsub.SimpleQueueDurable,
+	)
 	if err != nil {
-		log.Fatalf("Failed to open channel: %v", err)
+		log.Fatalf("Failed to declare/bind queue: %v", err)
 	}
 	defer ch.Close()
 
