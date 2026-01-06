@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
@@ -64,5 +63,4 @@ loop:
 			log.Printf("unknown command: %s", words[0])
 		}
 	}
-	fmt.Println("Shutting down...")
 }
