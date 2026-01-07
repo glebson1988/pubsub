@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"encoding/json"
 	"fmt"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -51,4 +52,59 @@ func DeclareAndBind(
 	}
 
 	return ch, queue, nil
+}
+
+func SubscribeJSON[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T),
+) error {
+	ch, q, err := DeclareAndBind(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+	)
+	if err != nil {
+		return fmt.Errorf("could not declare and bind queue: %w", err)
+	}
+
+	msgs, err := ch.Consume(
+		q.Name,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not start consuming messages: %w", err)
+	}
+
+	go func() {
+		for msg := range msgs {
+			var target T
+			if err := json.Unmarshal(msg.Body, &target); err != nil {
+				fmt.Printf("Error unmarshalling message: %v\n", err)
+				if err := msg.Nack(false, false); err != nil {
+					fmt.Printf("Error nacking message: %v\n", err)
+				}
+				continue
+			}
+
+			handler(target)
+
+			if err := msg.Ack(false); err != nil {
+				fmt.Printf("Error acknowledging message: %v\n", err)
+			}
+		}
+	}()
+
+	return nil
 }

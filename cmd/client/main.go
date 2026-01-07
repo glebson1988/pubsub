@@ -22,22 +22,21 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	gs := gamelogic.NewGameState(username)
 	queueName := routing.PauseKey + "." + username
 
-	ch, queue, err := pubsub.DeclareAndBind(
+	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
 		queueName,
 		routing.PauseKey,
 		pubsub.SimpleQueueTransient,
+		handlerPause(gs),
 	)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_ = ch
-	_ = queue
 
-	gs := gamelogic.NewGameState(username)
+	if err != nil {
+		log.Printf("could not subscribe to pause state: %v", err)
+	}
 
 	fmt.Println("Starting Peril client... (Ctrl+C to exit)")
 
@@ -69,5 +68,12 @@ func main() {
 		default:
 			log.Printf("unknown command: %s", words[0])
 		}
+	}
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+		gs.HandlePause(ps)
 	}
 }
