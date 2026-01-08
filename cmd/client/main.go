@@ -18,17 +18,25 @@ func main() {
 	}
 	defer conn.Close()
 
+	ch, err := conn.Channel()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer ch.Close()
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	gs := gamelogic.NewGameState(username)
-	queueName := routing.PauseKey + "." + username
+	pauseQueueName := routing.PauseKey + "." + username
+	moveQueueName := routing.ArmyMovesPrefix + "." + username
+	armyMovesRoutingKey := "army_moves.*"
 
 	err = pubsub.SubscribeJSON(
 		conn,
 		routing.ExchangePerilDirect,
-		queueName,
+		pauseQueueName,
 		routing.PauseKey,
 		pubsub.SimpleQueueTransient,
 		handlerPause(gs),
@@ -36,6 +44,19 @@ func main() {
 
 	if err != nil {
 		log.Printf("could not subscribe to pause state: %v", err)
+	}
+
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		moveQueueName,
+		armyMovesRoutingKey,
+		pubsub.SimpleQueueTransient,
+		handlerMove(gs),
+	)
+
+	if err != nil {
+		log.Printf("could not subscribe to pause move: %v", err)
 	}
 
 	fmt.Println("Starting Peril client... (Ctrl+C to exit)")
@@ -52,9 +73,24 @@ func main() {
 				log.Printf("Could not spawning: %v", err)
 			}
 		case "move":
-			_, err := gs.CommandMove(words)
+			move, err := gs.CommandMove(words)
 			if err != nil {
 				log.Printf("Could not move: %v", err)
+				break
+			}
+
+			routingKey := routing.ArmyMovesPrefix + "." + username
+
+			err = pubsub.PublishJSON(
+				ch,
+				routing.ExchangePerilTopic,
+				routingKey,
+				move,
+			)
+			if err != nil {
+				log.Printf("Could not publish move: %v", err)
+			} else {
+				log.Printf("published move to %s", routingKey)
 			}
 		case "status":
 			gs.CommandStatus()
@@ -68,12 +104,5 @@ func main() {
 		default:
 			log.Printf("unknown command: %s", words[0])
 		}
-	}
-}
-
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps routing.PlayingState) {
-		defer fmt.Print("> ")
-		gs.HandlePause(ps)
 	}
 }
