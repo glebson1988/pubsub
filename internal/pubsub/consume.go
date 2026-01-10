@@ -10,6 +10,8 @@ import (
 type AckType int
 type SimpleQueueType int
 
+const deadLetterExchangeName = "peril_dlx"
+
 const (
 	SimpleQueueDurable SimpleQueueType = iota
 	SimpleQueueTransient
@@ -39,7 +41,9 @@ func DeclareAndBind(
 		queueType != SimpleQueueDurable,
 		queueType != SimpleQueueDurable,
 		false,
-		nil,
+		amqp.Table{
+			"x-dead-letter-exchange": deadLetterExchangeName,
+		},
 	)
 	if err != nil {
 		return nil, amqp.Queue{}, fmt.Errorf("could not declare queue: %v", err)
