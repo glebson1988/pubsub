@@ -30,8 +30,9 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel, username string) fun
 			)
 			if err != nil {
 				fmt.Printf("Error publishing war recognition: %v\n", err)
+				return pubsub.NackRequeue
 			}
-			return pubsub.NackRequeue
+			return pubsub.Ack
 		case gamelogic.MoveOutcomeSamePlayer:
 			return pubsub.NackDiscard
 		default:
