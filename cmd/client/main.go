@@ -71,7 +71,7 @@ func main() {
 		warQueueName,
 		warRoutingKey,
 		pubsub.SimpleQueueDurable,
-		handlerWar(gs),
+		handlerWar(gs, ch),
 	)
 
 	if err != nil {

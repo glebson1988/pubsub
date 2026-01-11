@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -49,18 +50,43 @@ func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.Ack
 	}
 }
 
-func handlerWar(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
+func publishGameLog(ch *amqp.Channel, initiator string, log routing.GameLog) pubsub.AckType {
+	routingKey := routing.GameLogSlug + "." + initiator
+	if err := pubsub.PublishGob(ch, routing.ExchangePerilTopic, routingKey, log); err != nil {
+		fmt.Printf("Error publishing game log: %v\n", err)
+		return pubsub.NackRequeue
+	}
+	return pubsub.Ack
+}
+
+func handlerWar(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
-		outcome, _, _ := gs.HandleWar(rw)
+		outcome, winner, loser := gs.HandleWar(rw)
 
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
 			return pubsub.NackRequeue
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
-		case gamelogic.WarOutcomeOpponentWon, gamelogic.WarOutcomeYouWon, gamelogic.WarOutcomeDraw:
-			return pubsub.Ack
+		case gamelogic.WarOutcomeOpponentWon, gamelogic.WarOutcomeYouWon:
+			message := fmt.Sprintf("%s won a war against %s", winner, loser)
+			initiator := rw.Attacker.Username
+			log := routing.GameLog{
+				CurrentTime: time.Now(),
+				Message:     message,
+				Username:    initiator,
+			}
+			return publishGameLog(ch, initiator, log)
+		case gamelogic.WarOutcomeDraw:
+			message := fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser)
+			initiator := rw.Attacker.Username
+			log := routing.GameLog{
+				CurrentTime: time.Now(),
+				Message:     message,
+				Username:    initiator,
+			}
+			return publishGameLog(ch, initiator, log)
 		default:
 			fmt.Printf("Unknown war outcome: %v\n", outcome)
 			return pubsub.NackDiscard
