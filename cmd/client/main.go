@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -31,7 +32,12 @@ func main() {
 	gs := gamelogic.NewGameState(username)
 	pauseQueueName := routing.PauseKey + "." + username
 	moveQueueName := routing.ArmyMovesPrefix + "." + username
+	warQueueName := routing.WarRecognitionsPrefix
 	armyMovesRoutingKey := "army_moves.*"
+	warRoutingKey := routing.WarRecognitionsPrefix + ".*"
+	if strings.HasSuffix(routing.WarRecognitionsPrefix, ".") {
+		warRoutingKey = routing.WarRecognitionsPrefix + "*"
+	}
 
 	err = pubsub.SubscribeJSON(
 		conn,
@@ -52,11 +58,24 @@ func main() {
 		moveQueueName,
 		armyMovesRoutingKey,
 		pubsub.SimpleQueueTransient,
-		handlerMove(gs),
+		handlerMove(gs, ch, username),
 	)
 
 	if err != nil {
 		log.Printf("could not subscribe to pause move: %v", err)
+	}
+
+	err = pubsub.SubscribeJSON(
+		conn,
+		routing.ExchangePerilTopic,
+		warQueueName,
+		warRoutingKey,
+		pubsub.SimpleQueueDurable,
+		handlerWar(gs),
+	)
+
+	if err != nil {
+		log.Printf("could not subscribe to war recognitions: %v", err)
 	}
 
 	fmt.Println("Starting Peril client... (Ctrl+C to exit)")
