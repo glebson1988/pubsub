@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
@@ -17,17 +18,30 @@ func main() {
 	}
 	defer conn.Close()
 
-	ch, _, err := pubsub.DeclareAndBind(
+	publishCh, err := conn.Channel()
+	if err != nil {
+		log.Fatalf("Failed to create publish channel: %v", err)
+	}
+	defer publishCh.Close()
+
+	err = pubsub.SubscribeGob(
 		conn,
 		routing.ExchangePerilTopic,
 		routing.GameLogSlug,
 		routing.GameLogSlug+".*",
 		pubsub.SimpleQueueDurable,
+		func(gameLog routing.GameLog) pubsub.AckType {
+			defer fmt.Print("> ")
+			if err := gamelogic.WriteLog(gameLog); err != nil {
+				log.Printf("could not write log: %v", err)
+				return pubsub.NackRequeue
+			}
+			return pubsub.Ack
+		},
 	)
 	if err != nil {
-		log.Fatalf("Failed to declare/bind queue: %v", err)
+		log.Fatalf("Failed to subscribe to game logs: %v", err)
 	}
-	defer ch.Close()
 
 	gamelogic.PrintServerHelp()
 
@@ -42,7 +56,7 @@ loop:
 			log.Printf("sending pause message")
 			playingState := routing.PlayingState{IsPaused: true}
 			err = pubsub.PublishJSON(
-				ch,
+				publishCh,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
 				playingState,
@@ -54,7 +68,7 @@ loop:
 			log.Printf("sending resume message")
 			playingState := routing.PlayingState{IsPaused: false}
 			err = pubsub.PublishJSON(
-				ch,
+				publishCh,
 				routing.ExchangePerilDirect,
 				routing.PauseKey,
 				playingState,
