@@ -1,6 +1,6 @@
 # Peril Pub/Sub
 
-A small multiplayer CLI game used to learn pub/sub concepts with RabbitMQ. Players move units, trigger wars, and generate game logs. The server consumes game logs and writes them to `game.log`. The project exercises topic routing, durable queues, gob encoding, and backpressure tuning (prefetch).
+A multiplayer CLI game used to learn pub/sub concepts with RabbitMQ. Players move units, trigger wars, and generate game logs. The server consumes game logs and writes them to `game.log`. The project exercises topic routing, durable queues, gob encoding, and backpressure tuning (prefetch).
 
 ## Features
 - Topic exchange for game events and logs.
